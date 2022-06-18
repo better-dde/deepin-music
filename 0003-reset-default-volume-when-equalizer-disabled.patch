@@ -1,0 +1,27 @@
+diff -uNr a/src/music-player/core/player.cpp b/src/music-player/core/player.cpp
+--- a/src/music-player/core/player.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/core/player.cpp	2022-06-18 22:44:05.956299557 +0800
+@@ -1006,6 +1006,11 @@
+             //设置频率值
+             m_basePlayer->setAmplificationForBandAt(m_basePlayer->amplificationForBandAt(uint(i)), uint(i));
+         }
++    } else {
++        for (int i = 0 ; i < 10; i++) {
++            //设置频率值
++            m_basePlayer->setAmplificationForBandAt(uint(10), uint(i));
++        }
+     }
+ }
+ 
+diff -uNr a/src/music-player/widget/dequalizerdialog.cpp b/src/music-player/widget/dequalizerdialog.cpp
+--- a/src/music-player/widget/dequalizerdialog.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/widget/dequalizerdialog.cpp	2022-06-18 22:44:40.020112034 +0800
+@@ -419,7 +419,7 @@
+         Q_EMIT setEqualizerIndex(1);
+         MusicSettings::setOption("equalizer.all.curEffect", 1);
+     } else {
+-        Q_EMIT setEqualizerIndex(1);
++        Q_EMIT setEqualizerIndex(0);
+         MusicSettings::setOption("equalizer.all.curEffect", 1);
+     }
+     this->m_comBox->setEnabled(checked);

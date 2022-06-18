@@ -1,0 +1,192 @@
+diff -uNr a/src/libdmusic/mediameta.cpp b/src/libdmusic/mediameta.cpp
+--- a/src/libdmusic/mediameta.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/libdmusic/mediameta.cpp	2022-06-18 22:29:03.989315903 +0800
+@@ -62,6 +62,11 @@
+     MetaDetector::getCoverData(localPath, tmpPath, hash, engineType);
+ }
+ 
++void MediaMeta::getLyricData(const QString &tmpPath)
++{
++    MetaDetector::getLyricData(localPath, tmpPath, hash);
++}
++
+ namespace DMusic {
+ QString filepathHash(const QString &filepath)
+ {
+diff -uNr a/src/libdmusic/mediameta.h b/src/libdmusic/mediameta.h
+--- a/src/libdmusic/mediameta.h	2022-05-24 11:30:45.000000000 +0800
++++ b/src/libdmusic/mediameta.h	2022-06-18 22:29:29.265172954 +0800
+@@ -89,6 +89,7 @@
+     void updateSearchIndex();
+     void updateCodec(const QByteArray &codec);
+     void getCoverData(const QString &tmpPath, int engineType);
++    void getLyricData(const QString &tmpPath);
+ 
+ //    static MediaMeta fromLocalFile(const QFileInfo &fileInfo);
+ 
+diff -uNr a/src/libdmusic/metadetector.cpp b/src/libdmusic/metadetector.cpp
+--- a/src/libdmusic/metadetector.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/libdmusic/metadetector.cpp	2022-06-18 22:31:15.540574204 +0800
+@@ -56,6 +56,8 @@
+ #include <taglib/tag.h>
+ #include <taglib/attachedpictureframe.h>
+ #include <taglib/apetag.h>
++#include <taglib/mpegfile.h>
++#include <taglib/unsynchronizedlyricsframe.h>
+ 
+ #include <unicode/ucnv.h>
+ 
+@@ -447,6 +449,39 @@
+     return pixmap;
+ }
+ 
++void MetaDetector::getLyricData(const QString &path, const QString &tmpPath, const QString &hash)
++{
++    QString lyricsDirPath = tmpPath + "/lyrics";
++    QString lyricName = hash + ".lrc";
++    QDir lyricsDir(lyricsDirPath);
++    if (!lyricsDir.exists()) {
++        bool isExists = lyricsDir.cdUp();
++        isExists &= lyricsDir.mkdir("lyrics");
++        isExists &= lyricsDir.cd("lyrics");
++    }
++
++    if (!path.isEmpty() && !tmpPath.isEmpty() && !hash.isEmpty()) {
++        if (!lyricsDir.exists(lyricName)) {
++            QFile lyric(lyricsDirPath + "/" + lyricName);
++
++            TagLib::MPEG::File f1(path.toStdString().c_str());
++            TagLib::ID3v2::FrameList frames = f1.ID3v2Tag()->frameListMap()["USLT"];
++            if (!frames.isEmpty()) {
++                TagLib::ID3v2::UnsynchronizedLyricsFrame *frame = dynamic_cast<TagLib::ID3v2::UnsynchronizedLyricsFrame *>(frames.front());
++                if (frame) {
++                    if (lyric.open(QIODevice::WriteOnly)) {
++                        QString str = TStringToQString(frame->text());
++                        lyric.write(str.toUtf8());
++                    }
++                    lyric.close();
++                }
++            }   
++        }
++    }
++
++    return;
++}
++
+ MetaDetector::MetaDetector()
+ {
+     init();
+diff -uNr a/src/libdmusic/metadetector.h b/src/libdmusic/metadetector.h
+--- a/src/libdmusic/metadetector.h	2022-05-24 11:30:45.000000000 +0800
++++ b/src/libdmusic/metadetector.h	2022-06-18 22:31:38.112447467 +0800
+@@ -43,6 +43,8 @@
+ 
+     static void getCoverData(const QString &path, const QString &tmpPath, const QString &hash, int engineType);
+     static QPixmap getCoverDataPixmap(MediaMeta meta, int engineType);
++
++    static void getLyricData(const QString &path, const QString &tmpPath, const QString &hash);
+ private:
+     explicit MetaDetector();
+     friend class DMusic::DSingleton<MetaDetector>;
+diff -uNr a/src/music-player/presenter/databaseservice.cpp b/src/music-player/presenter/databaseservice.cpp
+--- a/src/music-player/presenter/databaseservice.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/presenter/databaseservice.cpp	2022-06-18 22:33:07.455947109 +0800
+@@ -681,6 +681,8 @@
+     }
+     //数据加载完后再加载图片
+     emit signalCreatCoverImg(m_AllMediaMeta);
++    //数据加载完后再加载歌词
++    emit signalCreatLyric(m_AllMediaMeta);
+     //启动加载数据完成后直接播放第一首歌
+     emit signalPlayFromFileMaganager();
+ }
+@@ -1346,6 +1348,8 @@
+             &m_worker, SLOT(slotRemoveSelectedSongs(const QString &, const QStringList &, bool)));
+     // 发送给子线程加载图片
+     connect(this, &DataBaseService::signalCreatCoverImg, &m_worker, &DBOperate::slotCreatCoverImg);
++    // 发送给子线程加载歌词
++    connect(this, &DataBaseService::signalCreatLyric, &m_worker, &DBOperate::slotCreatLyric);
+ 
+     // 单首歌曲完成解析
+     connect(&m_worker, &DBOperate::sigImportMetaFromThread, this, &DataBaseService::slotGetMetaFromThread, Qt::QueuedConnection);
+diff -uNr a/src/music-player/presenter/databaseservice.h b/src/music-player/presenter/databaseservice.h
+--- a/src/music-player/presenter/databaseservice.h	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/presenter/databaseservice.h	2022-06-18 22:33:57.643666850 +0800
+@@ -178,6 +178,8 @@
+     void signalGetAllMediaMeta();
+     // 发送给子线程执行创建图片
+     void signalCreatCoverImg(const QList<MediaMeta> &metas);
++    // 发送给子线程执行创建歌词
++    void signalCreatLyric(const QList<MediaMeta> &metas);
+     // 导入结束，通知主界面 allCount:待导入的文件数量   successCount：导入成功的数量
+     void signalImportFinished(QString hash, int successCount);
+     // 导入失败，有不支持的文件
+diff -uNr a/src/music-player/presenter/dboperate.cpp b/src/music-player/presenter/dboperate.cpp
+--- a/src/music-player/presenter/dboperate.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/presenter/dboperate.cpp	2022-06-18 22:34:37.747443275 +0800
+@@ -217,6 +217,25 @@
+     }
+ }
+ 
++void DBOperate::slotCreatLyric(const QList<MediaMeta> &metas)
++{
++    for (MediaMeta meta : metas) {
++        if (m_needStop) {
++            break;
++        }
++        if (m_needSleep) {
++            QThread::msleep(SLEEPTIME);
++            m_needSleep = false;
++        }
++
++        //没有加载过的文件才去解析数据
++        QFileInfo lyricInfo(Global::cacheDir() + "/lyrics/" + meta.hash + ".lrc");
++        if (!lyricInfo.exists()) {
++            meta.getLyricData(Global::cacheDir());
++        }
++    }
++}
++
+ void DBOperate::slotRemoveSelectedSongs(const QString &curpage, const QStringList &musichashlist, bool removeFromLocal)
+ {
+     // 从专辑等处删除，统一走删除所有逻辑
+diff -uNr a/src/music-player/presenter/dboperate.h b/src/music-player/presenter/dboperate.h
+--- a/src/music-player/presenter/dboperate.h	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/presenter/dboperate.h	2022-06-18 22:35:09.071268860 +0800
+@@ -48,6 +48,7 @@
+ public slots:
+     void     slotImportMedias(const QString &importHash, QString playHash, const QStringList &urllist);
+     void     slotCreatCoverImg(const QList<MediaMeta> &metas);
++    void     slotCreatLyric(const QList<MediaMeta> &metas);
+     void     slotRemoveSelectedSongs(const QString &curpage, const QStringList &musichashlist, bool removeFromLocal);
+ private:
+     bool     deleteMetaFromAllMusic(const QStringList &metaHash, bool removeFromLocal);
+diff -uNr a/src/music-player/widget/lrc/musiclyricwidget.cpp b/src/music-player/widget/lrc/musiclyricwidget.cpp
+--- a/src/music-player/widget/lrc/musiclyricwidget.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/widget/lrc/musiclyricwidget.cpp	2022-06-18 22:36:08.834936565 +0800
+@@ -227,13 +227,22 @@
+     QString lrcPath = fileInfo.dir().path() + QDir::separator() + fileInfo.completeBaseName() + ".lrc";
+     QFile file(lrcPath);
+     if (!file.exists()) {
+-        m_nolyric->show();
+-        m_lyricview->hide();
++        //读取根目录中歌词文件后读取媒体文件内嵌的歌词
++        MediaMeta meta = Player::getInstance()->getActiveMeta();
++        QFileInfo lyricInfo(Global::cacheDir() + "/lyrics/" + meta.hash + ".lrc");
++        if (!lyricInfo.exists()) {
++            m_nolyric->show();
++            m_lyricview->hide();
++        } else {
++            m_nolyric->hide();
++            m_lyricview->show();
++            m_lyricview->getFromFile(lyricInfo.filePath());
++        }
+     } else {
+         m_nolyric->hide();
+         m_lyricview->show();
++        m_lyricview->getFromFile(lrcPath);
+     }
+-    m_lyricview->getFromFile(lrcPath);
+ }
+ 
+ void MusicLyricWidget::onCoverChanged(MediaMeta meta)

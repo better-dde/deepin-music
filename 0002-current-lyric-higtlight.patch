@@ -1,0 +1,80 @@
+diff -uNr a/src/music-player/widget/lrc/lyriclabel.cpp b/src/music-player/widget/lrc/lyriclabel.cpp
+--- a/src/music-player/widget/lrc/lyriclabel.cpp	2022-05-24 11:30:45.000000000 +0800
++++ b/src/music-player/widget/lrc/lyriclabel.cpp	2022-06-18 22:40:43.001418520 +0800
+@@ -76,10 +76,11 @@
+ void LyricLabel::paintItem(QPainter *painter, int index, const QRect &rect)
+ {
+     if (index == this->m_currentItem) {
+-//        painter->setPen(lyricHighlight);
++        painter->setPen(lyricHighlight);
+         QFont font(lyricFont);
+         //绑定获取系统字体大小
+         font.setPixelSize(DFontSizeManager::instance()->fontPixelSize(DFontSizeManager::T6));
++        font.setWeight(QFont::DemiBold);
+         painter->setFont(font);
+         QPoint leftpos = rect.bottomLeft();
+         QPoint rightpos = rect.bottomRight();
+@@ -106,16 +107,16 @@
+ 
+         painter->drawLine(leftpos.x() + 23, leftpos.y(), rightpos.x() - 23, rightpos.y());
+         painter->restore();
++    } else {
++        QPen pen = painter->pen();
++        QColor color = pen.color();
++        color.setRed(lyricNormal.red());
++        color.setGreen(lyricNormal.green());
++        color.setBlue(lyricNormal.blue());
++        painter->setPen(color);
++        painter->setFont(lyricFont);
+     }
+ 
+-    QPen pen = painter->pen();
+-    QColor color = pen.color();
+-    color.setRed(lyricNormal.red());
+-    color.setGreen(lyricNormal.green());
+-    color.setBlue(lyricNormal.blue());
+-    painter->setPen(index == this->m_currentItem ? lyricHighlight : color);
+-    painter->setFont(lyricFont);
+-
+     QFontMetrics fm(lyricFont);
+     QString lricstr = lyric.getLineAt(index);
+     QPoint tleftpos = rect.topLeft();
+@@ -167,9 +168,7 @@
+ {
+     m_themetype = type;
+     if (type == 1) {
+-        QColor normalcolor = "#000000";
+-        normalcolor.setAlphaF(0.5);
+-        lyricNormal =  normalcolor;
++        lyricNormal =  QColor("#333333");
+         lyricHighlight =  QColor("#000000");
+     } else {
+         lyricNormal =  QColor("#C0C6D4");
+diff -uNr a/src/music-player/widget/lrc/musiclyricwidget.cpp b/src/music-player/widget/lrc/musiclyricwidget.cpp
+--- a/src/music-player/widget/lrc/musiclyricwidget.cpp	2022-06-18 22:37:17.882553351 +0800
++++ b/src/music-player/widget/lrc/musiclyricwidget.cpp	2022-06-18 22:41:50.377046698 +0800
+@@ -66,13 +66,13 @@
+     setPalette(palette);
+ 
+     m_cover = new Cover(this);
+-    m_cover->setFixedSize(200, 200);
++    m_cover->setFixedSize(300, 300);
+     m_cover->setObjectName("LyricCover");
+ 
+     QHBoxLayout *layout = new QHBoxLayout(this);
+ 
+     m_leftLayout = new QHBoxLayout;
+-    m_leftLayout->setContentsMargins(120, 0, 140, 0);
++    m_leftLayout->setContentsMargins(80, 0, 80, 0);
+     m_leftLayout->addWidget(m_cover, Qt::AlignLeft | Qt::AlignVCenter);
+ 
+     m_lyricview = new LyricLabel(false, this);
+@@ -87,7 +87,7 @@
+     m_nolyric->setForegroundRole(QPalette::WindowText);
+ 
+ 
+-    layout->setContentsMargins(20, 20, 20, 150);
++    layout->setContentsMargins(20, 20, 20, 120);
+     layout->addLayout(m_leftLayout, 0);
+     layout->addWidget(m_lyricview, 10);
+     layout->addWidget(m_nolyric, 10);
