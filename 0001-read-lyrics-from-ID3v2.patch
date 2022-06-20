@@ -36,7 +36,7 @@ diff -uNr a/src/libdmusic/metadetector.cpp b/src/libdmusic/metadetector.cpp
  
  #include <unicode/ucnv.h>
  
-@@ -447,6 +449,39 @@
+@@ -447,6 +449,37 @@
      return pixmap;
  }
  
@@ -46,9 +46,7 @@ diff -uNr a/src/libdmusic/metadetector.cpp b/src/libdmusic/metadetector.cpp
 +    QString lyricName = hash + ".lrc";
 +    QDir lyricsDir(lyricsDirPath);
 +    if (!lyricsDir.exists()) {
-+        bool isExists = lyricsDir.cdUp();
-+        isExists &= lyricsDir.mkdir("lyrics");
-+        isExists &= lyricsDir.cd("lyrics");
++        lyricsDir.mkdir(lyricsDirPath);
 +    }
 +
 +    if (!path.isEmpty() && !tmpPath.isEmpty() && !hash.isEmpty()) {
